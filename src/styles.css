@@ -73,6 +73,8 @@ h1 { margin: 0; font-size: clamp(2.6rem, 8vw, 4.5rem); line-height: .98; letter-
 .todo-list li { display: flex; align-items: center; gap: 13px; min-height: 56px; padding: 10px 12px; border-bottom: 1px solid #ecebe6; cursor: grab; transition: background .15s, opacity .15s; }
 .todo-list li:active { cursor: grabbing; }
 .todo-list li.dragging { opacity: .45; background: #edf1eb; }
+.todo-list li.drop-before { border-top: 2px solid #5f765c; }
+.todo-list li.drop-after { border-bottom: 2px solid #5f765c; }
 .todo-list li > span { flex: 1; overflow-wrap: anywhere; }
 .editable-title { cursor: text; }
 .todo-list li.completed > span { color: #a1a39e; text-decoration: line-through; }

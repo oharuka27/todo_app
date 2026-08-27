@@ -8,6 +8,7 @@ type Todo = {
 }
 
 type Filter = 'all' | 'active' | 'completed'
+type DropPosition = 'before' | 'after'
 
 const STORAGE_KEY = 'cloudflare-todo-sample'
 
@@ -27,6 +28,7 @@ export default function App() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ id: string; position: DropPosition } | null>(null)
   const editFormRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
@@ -102,7 +104,7 @@ export default function App() {
     setTodos((current) => current.filter((todo) => !todo.completed))
   }
 
-  function reorderTodos(targetId: string) {
+  function reorderTodos(targetId: string, position: DropPosition) {
     if (!draggedId || draggedId === targetId) return
 
     setTodos((current) => {
@@ -112,10 +114,22 @@ export default function App() {
 
       const reordered = [...current]
       const [draggedTodo] = reordered.splice(draggedIndex, 1)
-      const insertionIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex
+      const targetInsertionIndex = position === 'after' ? targetIndex + 1 : targetIndex
+      const insertionIndex = draggedIndex < targetInsertionIndex ? targetInsertionIndex - 1 : targetInsertionIndex
       reordered.splice(insertionIndex, 0, draggedTodo)
       return reordered
     })
+  }
+
+  function updateDropTarget(event: React.DragEvent<HTMLLIElement>, id: string) {
+    if (!draggedId || draggedId === id) {
+      setDropTarget(null)
+      return
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const position = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
+    setDropTarget({ id, position })
   }
 
   return (
@@ -159,12 +173,23 @@ export default function App() {
           {visibleTodos.map((todo) => (
             <li
               key={todo.id}
-              className={`${todo.completed ? 'completed' : ''}${draggedId === todo.id ? ' dragging' : ''}`}
+              className={`${todo.completed ? 'completed' : ''}${draggedId === todo.id ? ' dragging' : ''}${dropTarget?.id === todo.id ? ` drop-${dropTarget.position}` : ''}`}
               draggable={editingId !== todo.id}
               onDragStart={() => setDraggedId(todo.id)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => reorderTodos(todo.id)}
-              onDragEnd={() => setDraggedId(null)}
+              onDragOver={(event) => {
+                event.preventDefault()
+                updateDropTarget(event, todo.id)
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                if (dropTarget?.id === todo.id) reorderTodos(todo.id, dropTarget.position)
+                setDraggedId(null)
+                setDropTarget(null)
+              }}
+              onDragEnd={() => {
+                setDraggedId(null)
+                setDropTarget(null)
+              }}
             >
               <button
                 className="check-button"
