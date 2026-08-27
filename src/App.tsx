@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 type Todo = {
   id: string
@@ -24,10 +24,27 @@ export default function App() {
   const [todos, setTodos] = useState<Todo[]>(loadTodos)
   const [title, setTitle] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const editFormRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
   }, [todos])
+
+  useEffect(() => {
+    if (!editingId) return
+    const currentEditingId = editingId
+
+    function handleOutsideClick(event: MouseEvent) {
+      if (editFormRef.current && !editFormRef.current.contains(event.target as Node)) {
+        saveEdit(currentEditingId)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [editingId, editingTitle])
 
   const visibleTodos = useMemo(() => {
     if (filter === 'active') return todos.filter((todo) => !todo.completed)
@@ -53,6 +70,27 @@ export default function App() {
     setTodos((current) =>
       current.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)),
     )
+  }
+
+  function startEditing(todo: Todo) {
+    setEditingId(todo.id)
+    setEditingTitle(todo.title)
+  }
+
+  function saveEdit(id: string) {
+    const trimmedTitle = editingTitle.trim()
+    if (!trimmedTitle) return
+
+    setTodos((current) =>
+      current.map((todo) => (todo.id === id ? { ...todo, title: trimmedTitle } : todo)),
+    )
+    setEditingId(null)
+    setEditingTitle('')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditingTitle('')
   }
 
   function removeTodo(id: string) {
@@ -111,7 +149,32 @@ export default function App() {
               >
                 {todo.completed && '✓'}
               </button>
-              <span>{todo.title}</span>
+              {editingId === todo.id ? (
+                <form
+                  className="edit-form"
+                  ref={editFormRef}
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    saveEdit(todo.id)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') cancelEdit()
+                  }}
+                >
+                  <label className="sr-only" htmlFor={`edit-task-${todo.id}`}>タスク名を変更</label>
+                  <input
+                    id={`edit-task-${todo.id}`}
+                    value={editingTitle}
+                    onChange={(event) => setEditingTitle(event.target.value)}
+                    maxLength={100}
+                    autoFocus
+                  />
+                  <button type="submit" disabled={!editingTitle.trim()}>保存</button>
+                  <button type="button" onClick={cancelEdit}>キャンセル</button>
+                </form>
+              ) : (
+                <span className="editable-title" onDoubleClick={() => startEditing(todo)}>{todo.title}</span>
+              )}
               <button className="delete-button" onClick={() => removeTodo(todo.id)} aria-label={`${todo.title}を削除`}>
                 ×
               </button>

@@ -72,9 +72,15 @@ h1 { margin: 0; font-size: clamp(2.6rem, 8vw, 4.5rem); line-height: .98; letter-
 .todo-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .todo-list li { display: flex; align-items: center; gap: 13px; min-height: 56px; padding: 10px 12px; border-bottom: 1px solid #ecebe6; }
 .todo-list li > span { flex: 1; overflow-wrap: anywhere; }
+.editable-title { cursor: text; }
 .todo-list li.completed > span { color: #a1a39e; text-decoration: line-through; }
 .check-button { width: 23px; height: 23px; padding: 0; color: white; background: transparent; border: 1.5px solid #acb5a9; border-radius: 50%; font-size: .72rem; }
 .completed .check-button { background: #73866f; border-color: #73866f; }
+.edit-form { display: flex; flex: 1; gap: 6px; min-width: 0; }
+.edit-form input { flex: 1; min-width: 0; padding: 8px 10px; color: #282b29; background: #f5f4ef; border: 1px solid #879c82; border-radius: 8px; outline: none; }
+.edit-form button { padding: 5px 8px; color: #5f765c; background: transparent; border: 0; border-radius: 6px; font-size: .75rem; }
+.edit-form button:hover { background: #edf1eb; }
+.edit-form button:disabled { cursor: default; opacity: .4; }
 .delete-button { color: #b3aaa3; background: none; border: 0; font-size: 1.35rem; opacity: 0; transition: color .15s, opacity .15s; }
 .todo-list li:hover .delete-button, .delete-button:focus { opacity: 1; }
 .delete-button:hover { color: #a1584e; }
