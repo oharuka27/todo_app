@@ -26,6 +26,7 @@ export default function App() {
   const [filter, setFilter] = useState<Filter>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
+  const [draggedId, setDraggedId] = useState<string | null>(null)
   const editFormRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
@@ -101,6 +102,22 @@ export default function App() {
     setTodos((current) => current.filter((todo) => !todo.completed))
   }
 
+  function reorderTodos(targetId: string) {
+    if (!draggedId || draggedId === targetId) return
+
+    setTodos((current) => {
+      const draggedIndex = current.findIndex((todo) => todo.id === draggedId)
+      const targetIndex = current.findIndex((todo) => todo.id === targetId)
+      if (draggedIndex === -1 || targetIndex === -1) return current
+
+      const reordered = [...current]
+      const [draggedTodo] = reordered.splice(draggedIndex, 1)
+      const insertionIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex
+      reordered.splice(insertionIndex, 0, draggedTodo)
+      return reordered
+    })
+  }
+
   return (
     <main className="page-shell">
       <section className="todo-card" aria-labelledby="page-title">
@@ -140,7 +157,15 @@ export default function App() {
 
         <ul className="todo-list" aria-live="polite">
           {visibleTodos.map((todo) => (
-            <li key={todo.id} className={todo.completed ? 'completed' : ''}>
+            <li
+              key={todo.id}
+              className={`${todo.completed ? 'completed' : ''}${draggedId === todo.id ? ' dragging' : ''}`}
+              draggable={editingId !== todo.id}
+              onDragStart={() => setDraggedId(todo.id)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => reorderTodos(todo.id)}
+              onDragEnd={() => setDraggedId(null)}
+            >
               <button
                 className="check-button"
                 onClick={() => toggleTodo(todo.id)}

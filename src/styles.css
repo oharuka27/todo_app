@@ -70,7 +70,9 @@ h1 { margin: 0; font-size: clamp(2.6rem, 8vw, 4.5rem); line-height: .98; letter-
 .filters button.active { color: #344132; background: white; box-shadow: 0 2px 7px rgba(50, 55, 48, .08); }
 
 .todo-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.todo-list li { display: flex; align-items: center; gap: 13px; min-height: 56px; padding: 10px 12px; border-bottom: 1px solid #ecebe6; }
+.todo-list li { display: flex; align-items: center; gap: 13px; min-height: 56px; padding: 10px 12px; border-bottom: 1px solid #ecebe6; cursor: grab; transition: background .15s, opacity .15s; }
+.todo-list li:active { cursor: grabbing; }
+.todo-list li.dragging { opacity: .45; background: #edf1eb; }
 .todo-list li > span { flex: 1; overflow-wrap: anywhere; }
 .editable-title { cursor: text; }
 .todo-list li.completed > span { color: #a1a39e; text-decoration: line-through; }
