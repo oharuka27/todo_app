@@ -29,12 +29,19 @@ export default function App() {
   const [editingTitle, setEditingTitle] = useState('')
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<{ id: string; position: DropPosition } | null>(null)
+  const [pendingScrollId, setPendingScrollId] = useState<string | null>(null)
   const editFormRef = useRef<HTMLFormElement>(null)
   const todoListRef = useRef<HTMLUListElement>(null)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
   }, [todos])
+
+  useEffect(() => {
+    if (!pendingScrollId) return
+    keepDroppedTodoVisible(pendingScrollId)
+    setPendingScrollId(null)
+  }, [todos, pendingScrollId])
 
   useEffect(() => {
     if (!editingId) return
@@ -216,8 +223,10 @@ export default function App() {
               }}
               onDrop={(event) => {
                 event.preventDefault()
-                if (dropTarget?.id === todo.id) reorderTodos(todo.id, dropTarget.position)
-                if (dropTarget?.id === todo.id) keepDroppedTodoVisible(todo.id)
+                if (dropTarget?.id === todo.id && draggedId) {
+                  reorderTodos(todo.id, dropTarget.position)
+                  setPendingScrollId(draggedId)
+                }
                 setDraggedId(null)
                 setDropTarget(null)
               }}
