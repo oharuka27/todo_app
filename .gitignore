@@ -3,3 +3,5 @@ dist
 .npm-cache
 .wrangler
 .DS_Store
+
+todo_app/
