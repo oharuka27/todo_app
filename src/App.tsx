@@ -30,6 +30,7 @@ export default function App() {
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<{ id: string; position: DropPosition } | null>(null)
   const editFormRef = useRef<HTMLFormElement>(null)
+  const todoListRef = useRef<HTMLUListElement>(null)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
@@ -132,6 +133,33 @@ export default function App() {
     setDropTarget({ id, position })
   }
 
+  function autoScrollTodoList(event: React.DragEvent<HTMLUListElement>) {
+    if (!draggedId || !todoListRef.current) return
+
+    const list = todoListRef.current
+    const bounds = list.getBoundingClientRect()
+    const edgeThreshold = 48
+    const scrollStep = 3
+
+    if (event.clientY < bounds.top + edgeThreshold) {
+      list.scrollTop -= scrollStep
+    } else if (event.clientY > bounds.bottom - edgeThreshold) {
+      list.scrollTop += scrollStep
+    }
+  }
+
+  function keepDroppedTodoVisible(todoId: string) {
+    requestAnimationFrame(() => {
+      const list = todoListRef.current
+      if (!list) return
+
+      const droppedTodo = Array.from(list.children).find(
+        (item) => (item as HTMLElement).dataset.todoId === todoId,
+      ) as HTMLElement | undefined
+      droppedTodo?.scrollIntoView({ block: 'nearest' })
+    })
+  }
+
   return (
     <main className="page-shell">
       <section className="todo-card" aria-labelledby="page-title">
@@ -169,10 +197,16 @@ export default function App() {
           <span>{remaining} 件残っています</span>
         </div>
 
-        <ul className="todo-list" aria-live="polite">
+        <ul
+          className="todo-list"
+          ref={todoListRef}
+          aria-live="polite"
+          onDragOver={(event) => autoScrollTodoList(event)}
+        >
           {visibleTodos.map((todo) => (
             <li
               key={todo.id}
+              data-todo-id={todo.id}
               className={`${todo.completed ? 'completed' : ''}${draggedId === todo.id ? ' dragging' : ''}${dropTarget?.id === todo.id ? ` drop-${dropTarget.position}` : ''}`}
               draggable={editingId !== todo.id}
               onDragStart={() => setDraggedId(todo.id)}
@@ -183,6 +217,7 @@ export default function App() {
               onDrop={(event) => {
                 event.preventDefault()
                 if (dropTarget?.id === todo.id) reorderTodos(todo.id, dropTarget.position)
+                if (dropTarget?.id === todo.id) keepDroppedTodoVisible(todo.id)
                 setDraggedId(null)
                 setDropTarget(null)
               }}
