@@ -1,0 +1,72 @@
+name: CI and Cloudflare Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build application
+        if: success()
+        run: npm run build
+
+      - name: Notify success by email
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "[CI] All tests passed - Todo app"
+          to: ${{ vars.NOTIFY_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+          body: |
+            CI checks completed successfully.
+            All Vitest tests passed and the app built successfully.
+            Deployment to Cloudflare is now proceeding.
+
+      - name: Deploy to Cloudflare
+        if: success()
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --assets ./dist
+
+      - name: Notify failure by email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "[CI] Test failure - Todo app"
+          to: ${{ vars.NOTIFY_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+          body: |
+            CI failed while running the Todo app tests.
+            Check the GitHub Actions log for details.
+            Cloudflare deployment was skipped because at least one test failed.
