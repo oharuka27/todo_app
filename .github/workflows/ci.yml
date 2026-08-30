@@ -1,0 +1,101 @@
+name: CI Tests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        id: install
+        run: npm ci
+
+      - name: Run unit tests
+        id: test
+        run: npm test
+
+      - name: Build application
+        id: build
+        run: npm run build
+
+      - name: Notify success by email
+        if: >-
+          ${{
+            always() &&
+            steps.install.outcome == 'success' &&
+            steps.test.outcome == 'success' &&
+            steps.build.outcome == 'success'
+          }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "[CI] Tests passed - Todo app"
+          to: ${{ vars.NOTIFY_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+          body: |
+            CI checks completed successfully.
+
+            Install: ${{ steps.install.outcome }}
+            Test: ${{ steps.test.outcome }}
+            Build: ${{ steps.build.outcome }}
+
+            All Vitest tests passed and the application built successfully.
+
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+
+            GitHub Actions:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Notify failure by email
+        if: >-
+          ${{
+            always() &&
+            (
+              steps.install.outcome == 'failure' ||
+              steps.test.outcome == 'failure' ||
+              steps.build.outcome == 'failure'
+            )
+          }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "[CI] Tests failed - Todo app"
+          to: ${{ vars.NOTIFY_EMAIL }}
+          from: GitHub Actions <${{ secrets.SMTP_USERNAME }}>
+          body: |
+            CI checks failed.
+
+            Install: ${{ steps.install.outcome }}
+            Test: ${{ steps.test.outcome }}
+            Build: ${{ steps.build.outcome }}
+
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+
+            GitHub Actions:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

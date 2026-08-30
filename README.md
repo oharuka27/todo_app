@@ -1,53 +1,99 @@
 # Cloudflare TODO Sample
 
-React + TypeScript + Vite で作った、Cloudflare Pages のデプロイ練習用TODOアプリです。
+React + TypeScript + Vite で構築した TODO アプリです。
+Vitest による自動テスト、GitHub Actions での CI/CD、Cloudflare へのデプロイを含む構成になっています。
 
-## ローカルで起動
+## 概要
+
+- TODO の追加
+- 完了 / 未完了の切り替え
+- 削除と一括削除
+- すべて / 未完了 / 完了のフィルタ
+- `localStorage` による保存
+- Vitest でのユニットテスト
+- GitHub Actions でテスト結果をメール通知
+- テスト成功時のみ Cloudflare へデプロイ
+
+## ローカルでの起動
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Cloudflare Workers にデプロイ
+## テスト実行
 
-このプロジェクトには `wrangler.jsonc` が含まれているため、次の設定でデプロイできます。
+```bash
+npm test
+```
 
-- Build command: `npm run build`
-- Deploy command: `npx wrangler deploy --assets ./dist`
+監視モード:
 
-デプロイ後のURLは `https://todo-app.oharuka27.workers.dev` です。
+```bash
+npm run test:watch
+```
+
+## ビルド
+
+```bash
+npm run build
+```
+
+## GitHub Actions での CI/CD
+
+このプロジェクトでは GitHub Actions により、以下のフローを実行します。
+
+- `npm ci` で依存関係をインストール
+- `npm test` で Vitest を実行
+- 成功時: アプリをビルドして Cloudflare にデプロイ
+- 失敗時: メール通知を送信し、Cloudflare デプロイはスキップ
+
+ワークフロー定義は [.github/workflows/ci.yml](.github/workflows/ci.yml) にあります。
+
+### 必須設定
+
+GitHub のリポジトリ設定で、以下を登録してください。
+
+#### Secrets
+- `SMTP_SERVER`
+- `SMTP_PORT`
+- `SMTP_USERNAME`
+- `SMTP_PASSWORD`
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+#### Variables
+- `NOTIFY_EMAIL`
+
+成功時は指定メールアドレスに「テスト全パス」の通知を送信し、失敗時は「テスト失敗」の通知を送信します。
+
+## Cloudflare へのデプロイ
+
+このプロジェクトには `wrangler.jsonc` があり、デプロイコマンドは次の通りです。
+
+```bash
+npx wrangler deploy --assets ./dist
+```
+
+build コマンドは:
+
+```bash
+npm run build
+```
 
 ## Cloudflare Access で保護する
 
-Access はアプリに到達する前に認証を行うため、React側にログイン処理や秘密情報を追加する必要はありません。
+必要に応じて Cloudflare Access を利用して、アプリへのアクセスをメール認証で制限できます。
 
-1. Cloudflare Dashboard で **Zero Trust** → **Access** → **Applications** → **Add an application** を開きます。
-2. **Self-hosted** を選択します。
-3. Application name に `todo-app`、Session duration は任意の期間を指定します。
-4. Public hostname に `todo-app.oharuka27.workers.dev` を登録します。
-   - subdomain: todo-app
-   - domain: oharuka27.workers.dev
-   - path: empty
-5. Policy を作成し、次のように設定します。
-   - Selector: `Emails`
-   - Value: `oharuka27@gmail.com`
-6. 上記ポリシーを 許可(Allow) に設定する
-7. Cloudflare Dashboardで Zero Trust を開く
-8. Left side menu > Integrations
-9. Identity providers
-10. **Your identity providers** > **Add new identity provider**
-11. Select **One-time PIN**
+1. Cloudflare Dashboard で Zero Trust → Access → Applications を開く
+2. Self-hosted を選択
+3. Public hostname を設定
+4. Policy で `Emails` を許可
+5. One-time PIN などの IdP を設定
 
-以後、アプリURLへアクセスするとメールOTPの入力を求められ、`oharuka27@gmail.com` のみ利用できます。Access設定後は、Cloudflare Dashboardのアプリケーション画面から認証ログと許可ポリシーを確認できます。
+この構成により、指定メールアドレス以外のアクセスを遮断できます。
 
-以後は対象ブランチへ push するたびに自動で再デプロイされます。
+## 補足
 
-## 機能
-
-- TODOの追加、完了状態の切り替え、削除
-- すべて・未完了・完了の絞り込み
-- 完了済みTODOの一括削除
-- `localStorage` によるブラウザ内保存
-
-このサンプルはバックエンドを使用しないため、データは端末・ブラウザ間で同期されません。
+このアプリはバックエンドを持たないため、データはブラウザの `localStorage` に保存されます。
+そのため、端末やブラウザ間ではデータが同期されません。
