@@ -85,6 +85,21 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [editingId, editingTitle])
 
+  useEffect(() => {
+    // 文字入力中以外で N キーを押すと項目を追加する
+    function handleShortcut(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== 'n' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return
+      const target = event.target as HTMLElement
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return
+
+      event.preventDefault()
+      addTodo()
+    }
+
+    document.addEventListener('keydown', handleShortcut)
+    return () => document.removeEventListener('keydown', handleShortcut)
+  }, [filter])
+
   const visibleTodos = useMemo(() => {
     if (filter === 'active') return todos.filter((todo) => !todo.completed)
     if (filter === 'completed') return todos.filter((todo) => todo.completed)
@@ -233,7 +248,16 @@ export default function App() {
 
         <div className="toolbar">
           <div className="toolbar-start">
-            <button type="button" className="add-button" onClick={addTodo} aria-label="タスクを追加">＋</button>
+            <button
+              type="button"
+              className="add-button"
+              onClick={addTodo}
+              aria-label="タスクを追加"
+              aria-keyshortcuts="N"
+              title="新しいタスク（N）"
+            >
+              ＋
+            </button>
             <div className="filters" aria-label="表示するタスク">
               {(['all', 'active', 'completed'] as Filter[]).map((item) => (
                 <button
@@ -313,6 +337,13 @@ export default function App() {
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Escape') cancelEdit()
+                    // Shift+Enter で確定して、続けて次の項目を追加する
+                    if (event.key === 'Enter' && event.shiftKey && !event.nativeEvent.isComposing) {
+                      event.preventDefault()
+                      if (!editingTitle.trim()) return
+                      saveEdit(todo.id)
+                      addTodo()
+                    }
                   }}
                 >
                   <label className="sr-only" htmlFor={`edit-task-${todo.id}`}>タスク名を変更</label>
@@ -348,7 +379,13 @@ export default function App() {
           <button className="clear-button" onClick={clearCompleted}>完了済みを削除</button>
         )}
       </section>
-      <footer>データはこのブラウザに保存されます</footer>
+      <footer>
+        <p className="shortcut-hint">
+          <span><kbd>N</kbd> 新しいタスクを追加</span>
+          <span><kbd>Shift</kbd> + <kbd>Enter</kbd> 確定して続けて追加</span>
+        </p>
+        <p>データはこのブラウザに保存されます</p>
+      </footer>
     </main>
   )
 }
