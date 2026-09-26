@@ -32,6 +32,27 @@ export function filterTodos(todos: Todo[], filter: Filter): Todo[] {
   }
 }
 
+export function toggleTodo(todos: Todo[], id: string): Todo[] {
+  return todos.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo))
+}
+
+export function renameTodo(todos: Todo[], id: string, title: string): Todo[] {
+  return todos.map((todo) => (todo.id === id ? { ...todo, title: title.trim() } : todo))
+}
+
+export function removeTodo(todos: Todo[], id: string): Todo[] {
+  return todos.filter((todo) => todo.id !== id)
+}
+
+export function clearCompleted(todos: Todo[]): Todo[] {
+  return todos.filter((todo) => !todo.completed)
+}
+
+// 入力途中の空の項目は残り件数に含めない
+export function countRemaining(todos: Todo[]): number {
+  return todos.filter((todo) => !todo.completed && todo.title !== '').length
+}
+
 export function loadTodos(): Todo[] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)

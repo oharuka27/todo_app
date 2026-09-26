@@ -1,17 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CO2_GRAMS_PER_NOTE, SAVED_NOTES_STORAGE_KEY, formatCo2, loadSavedNotes } from './todoUtils'
+import {
+  CO2_GRAMS_PER_NOTE,
+  SAVED_NOTES_STORAGE_KEY,
+  STORAGE_KEY,
+  clearCompleted,
+  countRemaining,
+  createTodo,
+  filterTodos,
+  formatCo2,
+  loadSavedNotes,
+  loadTodos,
+  removeTodo,
+  renameTodo,
+  reorderTodos,
+  toggleTodo,
+  type DropPosition,
+  type Filter,
+  type Todo,
+} from './todoUtils'
 
-type Todo = {
-  id: string
-  title: string
-  completed: boolean
-  createdAt: number
-}
-
-type Filter = 'all' | 'active' | 'completed'
-type DropPosition = 'before' | 'after'
-
-const STORAGE_KEY = 'cloudflare-todo-sample'
 const LAYOUT_STORAGE_KEY = 'cloudflare-todo-layout'
 type Layout = 1 | 2
 
@@ -20,15 +27,6 @@ function loadLayout(): Layout {
     return localStorage.getItem(LAYOUT_STORAGE_KEY) === '2' ? 2 : 1
   } catch {
     return 1
-  }
-}
-
-function loadTodos(): Todo[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? (JSON.parse(saved) as Todo[]) : []
-  } catch {
-    return []
   }
 }
 
@@ -100,33 +98,27 @@ export default function App() {
     return () => document.removeEventListener('keydown', handleShortcut)
   }, [filter])
 
-  const visibleTodos = useMemo(() => {
-    if (filter === 'active') return todos.filter((todo) => !todo.completed)
-    if (filter === 'completed') return todos.filter((todo) => todo.completed)
-    return todos
-  }, [filter, todos])
+  const visibleTodos = useMemo(() => filterTodos(todos, filter), [filter, todos])
 
-  const remaining = todos.filter((todo) => !todo.completed && todo.title !== '').length
+  const remaining = countRemaining(todos)
 
   function addTodo() {
-    const id = crypto.randomUUID()
     // 空の項目を先頭に追加し、そのまま入力できるよう編集状態にする（カウントは保存時）
-    setTodos((current) => [{ id, title: '', completed: false, createdAt: Date.now() }, ...current])
+    const newTodo = createTodo('')
+    setTodos((current) => [newTodo, ...current])
     if (filter === 'completed') setFilter('all')
-    setEditingId(id)
+    setEditingId(newTodo.id)
     setEditingTitle('')
     todoListRef.current?.scrollTo({ top: 0 })
   }
 
   // 何も入力されずに編集を終えた新規項目は取り除く
   function discardIfEmpty(id: string) {
-    if (todos.find((todo) => todo.id === id)?.title === '') removeTodo(id)
+    if (todos.find((todo) => todo.id === id)?.title === '') deleteTodo(id)
   }
 
-  function toggleTodo(id: string) {
-    setTodos((current) =>
-      current.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)),
-    )
+  function toggleCompleted(id: string) {
+    setTodos((current) => toggleTodo(current, id))
   }
 
   function startEditing(todo: Todo) {
@@ -146,9 +138,7 @@ export default function App() {
     if (todos.find((todo) => todo.id === id)?.title !== trimmedTitle) {
       setSavedNotes((count) => count + 1)
     }
-    setTodos((current) =>
-      current.map((todo) => (todo.id === id ? { ...todo, title: trimmedTitle } : todo)),
-    )
+    setTodos((current) => renameTodo(current, id, trimmedTitle))
     setEditingId(null)
     setEditingTitle('')
   }
@@ -159,29 +149,17 @@ export default function App() {
     setEditingTitle('')
   }
 
-  function removeTodo(id: string) {
-    setTodos((current) => current.filter((todo) => todo.id !== id))
+  function deleteTodo(id: string) {
+    setTodos((current) => removeTodo(current, id))
   }
 
-  function clearCompleted() {
-    setTodos((current) => current.filter((todo) => !todo.completed))
+  function deleteCompleted() {
+    setTodos((current) => clearCompleted(current))
   }
 
-  function reorderTodos(targetId: string, position: DropPosition) {
-    if (!draggedId || draggedId === targetId) return
-
-    setTodos((current) => {
-      const draggedIndex = current.findIndex((todo) => todo.id === draggedId)
-      const targetIndex = current.findIndex((todo) => todo.id === targetId)
-      if (draggedIndex === -1 || targetIndex === -1) return current
-
-      const reordered = [...current]
-      const [draggedTodo] = reordered.splice(draggedIndex, 1)
-      const targetInsertionIndex = position === 'after' ? targetIndex + 1 : targetIndex
-      const insertionIndex = draggedIndex < targetInsertionIndex ? targetInsertionIndex - 1 : targetInsertionIndex
-      reordered.splice(insertionIndex, 0, draggedTodo)
-      return reordered
-    })
+  function moveDraggedTodo(targetId: string, position: DropPosition) {
+    if (!draggedId) return
+    setTodos((current) => reorderTodos(current, targetId, draggedId, position))
   }
 
   function updateDropTarget(event: React.DragEvent<HTMLLIElement>, id: string) {
@@ -308,7 +286,7 @@ export default function App() {
               onDrop={(event) => {
                 event.preventDefault()
                 if (dropTarget?.id === todo.id && draggedId) {
-                  reorderTodos(todo.id, dropTarget.position)
+                  moveDraggedTodo(todo.id, dropTarget.position)
                   setPendingScrollId(draggedId)
                 }
                 setDraggedId(null)
@@ -321,7 +299,7 @@ export default function App() {
             >
               <button
                 className="check-button"
-                onClick={() => toggleTodo(todo.id)}
+                onClick={() => toggleCompleted(todo.id)}
                 aria-label={todo.completed ? `${todo.title}を未完了に戻す` : `${todo.title}を完了にする`}
                 aria-pressed={todo.completed}
               >
@@ -361,7 +339,7 @@ export default function App() {
               ) : (
                 <span className="editable-title" onDoubleClick={() => startEditing(todo)}>{todo.title}</span>
               )}
-              <button className="delete-button" onClick={() => removeTodo(todo.id)} aria-label={`${todo.title}を削除`}>
+              <button className="delete-button" onClick={() => deleteTodo(todo.id)} aria-label={`${todo.title}を削除`}>
                 ×
               </button>
             </li>
@@ -376,7 +354,7 @@ export default function App() {
         )}
 
         {todos.some((todo) => todo.completed) && (
-          <button className="clear-button" onClick={clearCompleted}>完了済みを削除</button>
+          <button className="clear-button" onClick={deleteCompleted}>完了済みを削除</button>
         )}
       </section>
       <footer>
