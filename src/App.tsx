@@ -11,6 +11,16 @@ type Filter = 'all' | 'active' | 'completed'
 type DropPosition = 'before' | 'after'
 
 const STORAGE_KEY = 'cloudflare-todo-sample'
+const LAYOUT_STORAGE_KEY = 'cloudflare-todo-layout'
+type Layout = 1 | 2
+
+function loadLayout(): Layout {
+  try {
+    return localStorage.getItem(LAYOUT_STORAGE_KEY) === '2' ? 2 : 1
+  } catch {
+    return 1
+  }
+}
 
 function loadTodos(): Todo[] {
   try {
@@ -25,6 +35,7 @@ export default function App() {
   const [todos, setTodos] = useState<Todo[]>(loadTodos)
   const [title, setTitle] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [layout, setLayout] = useState<Layout>(loadLayout)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [draggedId, setDraggedId] = useState<string | null>(null)
@@ -36,6 +47,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
   }, [todos])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, String(layout))
+    } catch {
+      // 保存できない環境でも表示切り替えは使えるようにする
+    }
+  }, [layout])
 
   useEffect(() => {
     if (!pendingScrollId) return
@@ -169,7 +188,7 @@ export default function App() {
 
   return (
     <main className="page-shell">
-      <section className="todo-card" aria-labelledby="page-title">
+      <section className={`todo-card columns-${layout}`} aria-labelledby="page-title">
         <header className="hero">
           <p className="eyebrow">DAILY FOCUS</p>
           <h1 id="page-title">My Tasks</h1>
@@ -201,11 +220,26 @@ export default function App() {
               </button>
             ))}
           </div>
-          <span>{remaining} 件残っています</span>
+          <div className="toolbar-end">
+            <span>{remaining} 件残っています</span>
+            <div className="layout-switch" role="group" aria-label="タスクの表示列数">
+              {([1, 2] as Layout[]).map((columns) => (
+                <button
+                  key={columns}
+                  type="button"
+                  className={layout === columns ? 'active' : ''}
+                  aria-pressed={layout === columns}
+                  onClick={() => setLayout(columns)}
+                >
+                  {columns}列
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <ul
-          className="todo-list"
+          className={`todo-list columns-${layout}`}
           ref={todoListRef}
           aria-live="polite"
           onDragOver={(event) => autoScrollTodoList(event)}
