@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CO2_GRAMS_PER_NOTE, SAVED_NOTES_STORAGE_KEY, formatCo2, loadSavedNotes } from './todoUtils'
 
 type Todo = {
@@ -35,7 +35,6 @@ function loadTodos(): Todo[] {
 export default function App() {
   const [todos, setTodos] = useState<Todo[]>(loadTodos)
   const [savedNotes, setSavedNotes] = useState(loadSavedNotes)
-  const [title, setTitle] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [layout, setLayout] = useState<Layout>(loadLayout)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -92,19 +91,21 @@ export default function App() {
     return todos
   }, [filter, todos])
 
-  const remaining = todos.filter((todo) => !todo.completed).length
+  const remaining = todos.filter((todo) => !todo.completed && todo.title !== '').length
 
-  function addTodo(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const trimmedTitle = title.trim()
-    if (!trimmedTitle) return
+  function addTodo() {
+    const id = crypto.randomUUID()
+    // 空の項目を先頭に追加し、そのまま入力できるよう編集状態にする（カウントは保存時）
+    setTodos((current) => [{ id, title: '', completed: false, createdAt: Date.now() }, ...current])
+    if (filter === 'completed') setFilter('all')
+    setEditingId(id)
+    setEditingTitle('')
+    todoListRef.current?.scrollTo({ top: 0 })
+  }
 
-    setTodos((current) => [
-      { id: crypto.randomUUID(), title: trimmedTitle, completed: false, createdAt: Date.now() },
-      ...current,
-    ])
-    setSavedNotes((count) => count + 1)
-    setTitle('')
+  // 何も入力されずに編集を終えた新規項目は取り除く
+  function discardIfEmpty(id: string) {
+    if (todos.find((todo) => todo.id === id)?.title === '') removeTodo(id)
   }
 
   function toggleTodo(id: string) {
@@ -120,7 +121,12 @@ export default function App() {
 
   function saveEdit(id: string) {
     const trimmedTitle = editingTitle.trim()
-    if (!trimmedTitle) return
+    if (!trimmedTitle) {
+      if (todos.find((todo) => todo.id === id)?.title !== '') return
+      discardIfEmpty(id)
+      setEditingId(null)
+      return
+    }
 
     if (todos.find((todo) => todo.id === id)?.title !== trimmedTitle) {
       setSavedNotes((count) => count + 1)
@@ -133,6 +139,7 @@ export default function App() {
   }
 
   function cancelEdit() {
+    if (editingId) discardIfEmpty(editingId)
     setEditingId(null)
     setEditingTitle('')
   }
@@ -224,30 +231,20 @@ export default function App() {
           </div>
         </header>
 
-        <form className="add-form" onSubmit={addTodo}>
-          <label className="sr-only" htmlFor="new-task">新しいタスク</label>
-          <input
-            id="new-task"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="新しいタスクを入力…"
-            maxLength={100}
-            autoFocus
-          />
-          <button type="submit" disabled={!title.trim()} aria-label="タスクを追加">＋</button>
-        </form>
-
         <div className="toolbar">
-          <div className="filters" aria-label="表示するタスク">
-            {(['all', 'active', 'completed'] as Filter[]).map((item) => (
-              <button
-                key={item}
-                className={filter === item ? 'active' : ''}
-                onClick={() => setFilter(item)}
-              >
-                {{ all: 'すべて', active: '未完了', completed: '完了' }[item]}
-              </button>
-            ))}
+          <div className="toolbar-start">
+            <button type="button" className="add-button" onClick={addTodo} aria-label="タスクを追加">＋</button>
+            <div className="filters" aria-label="表示するタスク">
+              {(['all', 'active', 'completed'] as Filter[]).map((item) => (
+                <button
+                  key={item}
+                  className={filter === item ? 'active' : ''}
+                  onClick={() => setFilter(item)}
+                >
+                  {{ all: 'すべて', active: '未完了', completed: '完了' }[item]}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="toolbar-end">
             <span>{remaining} 件残っています</span>
@@ -323,6 +320,7 @@ export default function App() {
                     id={`edit-task-${todo.id}`}
                     value={editingTitle}
                     onChange={(event) => setEditingTitle(event.target.value)}
+                    placeholder="新しいタスクを入力…"
                     maxLength={100}
                     autoFocus
                   />
@@ -342,7 +340,7 @@ export default function App() {
         {visibleTodos.length === 0 && (
           <div className="empty-state">
             <span>✓</span>
-            <p>{todos.length === 0 ? 'タスクはまだありません' : '該当するタスクはありません'}</p>
+            <p>{todos.length === 0 ? '＋ボタンでタスクを追加しましょう' : '該当するタスクはありません'}</p>
           </div>
         )}
 

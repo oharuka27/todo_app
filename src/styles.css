@@ -82,32 +82,26 @@ h1 span:last-child { color: #5f765c; }
 .leaf-co2 { font-size: .95rem; font-weight: 700; }
 .subtitle { margin: 14px 0 0; color: #777a75; }
 
-.add-form { display: flex; gap: 10px; }
-.add-form input {
-  width: 100%;
-  padding: 16px 18px;
-  color: #282b29;
-  background: #f5f4ef;
-  border: 1px solid transparent;
-  border-radius: 14px;
-  outline: none;
-  transition: border-color .2s, box-shadow .2s;
-}
-.add-form input:focus { border-color: #879c82; box-shadow: 0 0 0 3px rgba(135, 156, 130, .15); }
-.add-form button {
-  flex: 0 0 54px;
+
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 10px; color: #858781; font-size: .78rem; }
+.toolbar-start { display: flex; align-items: center; gap: 12px; }
+.toolbar-end { display: flex; align-items: center; gap: 16px; }
+.add-button {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   color: white;
   background: #5f765c;
   border: 0;
-  border-radius: 14px;
-  font-size: 1.65rem;
-  transition: transform .15s, opacity .15s;
+  border-radius: 12px;
+  font-size: 1.5rem;
+  line-height: 1;
+  box-shadow: 0 6px 16px rgba(79, 104, 74, .25);
+  transition: transform .15s, background .15s;
 }
-.add-form button:hover:not(:disabled) { transform: translateY(-2px); }
-.add-form button:disabled { cursor: default; opacity: .35; }
-
-.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 10px; color: #858781; font-size: .78rem; }
-.toolbar-end { display: flex; align-items: center; gap: 16px; }
+.add-button:hover { background: #536a50; transform: translateY(-2px); }
+.add-button:focus-visible { outline: 3px solid rgba(135, 156, 130, .45); outline-offset: 2px; }
 .layout-switch { display: flex; gap: 3px; padding: 4px; background: #f1f0eb; border-radius: 10px; }
 .layout-switch button { padding: 6px 10px; color: #73766f; background: transparent; border: 0; border-radius: 7px; font-size: .75rem; }
 .layout-switch button.active { color: #344132; background: white; box-shadow: 0 2px 7px rgba(50, 55, 48, .08); }
@@ -154,6 +148,8 @@ footer { margin-top: 8px; color: #93928c; font-size: .7rem; text-align: center; 
   .leaf-count { font-size: 1.9rem; }
   .toolbar { flex-wrap: wrap; }
   .toolbar-end { width: 100%; justify-content: space-between; }
+  .edit-form { flex-wrap: wrap; justify-content: flex-end; }
+  .edit-form input { flex-basis: 100%; }
   .delete-button { opacity: 1; }
 }
 
