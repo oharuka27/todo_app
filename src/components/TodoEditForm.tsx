@@ -48,8 +48,6 @@ export function TodoEditForm({ todoId, initialTitle, onSave, onSaveAndNext, onCa
         maxLength={100}
         autoFocus
       />
-      <button type="submit" disabled={!title.trim()}>保存</button>
-      <button type="button" onClick={onCancel}>キャンセル</button>
     </form>
   )
 }
