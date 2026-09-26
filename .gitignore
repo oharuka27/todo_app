@@ -4,4 +4,9 @@ dist
 .wrangler
 .DS_Store
 
+# TypeScript / Vite の生成ファイル
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
 todo_app/

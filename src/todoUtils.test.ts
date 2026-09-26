@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { createTodo, filterTodos, formatCo2, loadSavedNotes, loadTodos, reorderTodos, type Todo } from './todoUtils'
+import {
+  clearCompleted,
+  countRemaining,
+  createTodo,
+  filterTodos,
+  formatCo2,
+  loadSavedNotes,
+  loadTodos,
+  parseTodos,
+  removeTodo,
+  renameTodo,
+  reorderTodos,
+  toggleTodo,
+  type Todo,
+} from './todoUtils'
 
 describe('todo utilities', () => {
   it('creates a todo with trimmed title', () => {
@@ -33,6 +47,53 @@ describe('todo utilities', () => {
     expect(reordered.map((todo) => todo.id)).toEqual(['3', '1', '2'])
   })
 
+  it('reorders a todo after another item when moving downward', () => {
+    const todos: Todo[] = [
+      { id: '1', title: 'first', completed: false, createdAt: 1 },
+      { id: '2', title: 'second', completed: false, createdAt: 2 },
+      { id: '3', title: 'third', completed: false, createdAt: 3 },
+    ]
+
+    expect(reorderTodos(todos, '2', '1', 'after').map((todo) => todo.id)).toEqual(['2', '1', '3'])
+    expect(reorderTodos(todos, '3', '1', 'after').map((todo) => todo.id)).toEqual(['2', '3', '1'])
+  })
+
+  it('keeps the order when dropped on itself or an unknown item', () => {
+    const todos: Todo[] = [
+      { id: '1', title: 'first', completed: false, createdAt: 1 },
+      { id: '2', title: 'second', completed: false, createdAt: 2 },
+    ]
+
+    expect(reorderTodos(todos, '1', '1', 'after')).toBe(todos)
+    expect(reorderTodos(todos, 'missing', '1', 'before')).toBe(todos)
+  })
+
+  it('creates an empty todo for direct input', () => {
+    expect(createTodo('').title).toBe('')
+  })
+
+  it('toggles, renames and removes only the target todo', () => {
+    const todos: Todo[] = [
+      { id: '1', title: 'first', completed: false, createdAt: 1 },
+      { id: '2', title: 'second', completed: false, createdAt: 2 },
+    ]
+
+    expect(toggleTodo(todos, '1')).toEqual([{ ...todos[0], completed: true }, todos[1]])
+    expect(renameTodo(todos, '2', '  renamed  ')).toEqual([todos[0], { ...todos[1], title: 'renamed' }])
+    expect(removeTodo(todos, '1')).toEqual([todos[1]])
+  })
+
+  it('clears completed todos and counts remaining ones without empty drafts', () => {
+    const todos: Todo[] = [
+      { id: '1', title: 'done', completed: true, createdAt: 1 },
+      { id: '2', title: 'active', completed: false, createdAt: 2 },
+      { id: '3', title: '', completed: false, createdAt: 3 },
+    ]
+
+    expect(clearCompleted(todos).map((todo) => todo.id)).toEqual(['2', '3'])
+    expect(countRemaining(todos)).toBe(1)
+  })
+
   it('loads todos from localStorage and falls back to empty list', () => {
     localStorage.setItem('cloudflare-todo-sample', JSON.stringify([{ id: 'x', title: 'stored', completed: false, createdAt: 42 }]))
 
@@ -40,6 +101,39 @@ describe('todo utilities', () => {
 
     localStorage.clear()
     expect(loadTodos()).toEqual([])
+  })
+
+  it('ignores broken or non-array saved data', () => {
+    expect(parseTodos('{broken')).toEqual([])
+    expect(parseTodos('null')).toEqual([])
+    expect(parseTodos('{"id":"x"}')).toEqual([])
+
+    localStorage.setItem('cloudflare-todo-sample', '{broken')
+    expect(loadTodos()).toEqual([])
+    localStorage.clear()
+  })
+
+  it('keeps only valid todos from saved data', () => {
+    const valid = { id: 'ok', title: 'valid', completed: true, createdAt: 1 }
+    const saved = JSON.stringify([
+      valid,
+      null,
+      'text',
+      { id: 'no-title', completed: false, createdAt: 2 },
+      { id: 'bad-completed', title: 'x', completed: 'yes', createdAt: 3 },
+      { id: 'bad-date', title: 'x', completed: false, createdAt: '2026-01-01' },
+      { id: '', title: 'empty id', completed: false, createdAt: 4 },
+      { id: 'draft', title: '  ', completed: false, createdAt: 5 },
+      { ...valid, title: 'duplicate' },
+    ])
+
+    expect(parseTodos(saved)).toEqual([valid])
+  })
+
+  it('drops unknown fields from saved todos', () => {
+    const saved = JSON.stringify([{ id: 'x', title: 't', completed: false, createdAt: 1, extra: '<script>' }])
+
+    expect(parseTodos(saved)).toEqual([{ id: 'x', title: 't', completed: false, createdAt: 1 }])
   })
 
   it('loads saved note count and falls back to zero', () => {

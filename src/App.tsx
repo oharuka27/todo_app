@@ -1,226 +1,46 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { CO2_GRAMS_PER_NOTE, SAVED_NOTES_STORAGE_KEY, formatCo2, loadSavedNotes } from './todoUtils'
-
-type Todo = {
-  id: string
-  title: string
-  completed: boolean
-  createdAt: number
-}
-
-type Filter = 'all' | 'active' | 'completed'
-type DropPosition = 'before' | 'after'
-
-const STORAGE_KEY = 'cloudflare-todo-sample'
-const LAYOUT_STORAGE_KEY = 'cloudflare-todo-layout'
-type Layout = 1 | 2
-
-function loadLayout(): Layout {
-  try {
-    return localStorage.getItem(LAYOUT_STORAGE_KEY) === '2' ? 2 : 1
-  } catch {
-    return 1
-  }
-}
-
-function loadTodos(): Todo[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? (JSON.parse(saved) as Todo[]) : []
-  } catch {
-    return []
-  }
-}
+import { useMemo, useState } from 'react'
+import { EmptyState } from './components/EmptyState'
+import { LeafCounter } from './components/LeafCounter'
+import { ShortcutHint } from './components/ShortcutHint'
+import { TodoList } from './components/TodoList'
+import { Toolbar } from './components/Toolbar'
+import { useKeyboardShortcut } from './hooks/useKeyboardShortcut'
+import { usePersistentState } from './hooks/usePersistentState'
+import { useTodos } from './hooks/useTodos'
+import { LAYOUT_STORAGE_KEY, loadLayout } from './layout'
+import { filterTodos, type Filter } from './todoUtils'
 
 export default function App() {
-  const [todos, setTodos] = useState<Todo[]>(loadTodos)
-  const [savedNotes, setSavedNotes] = useState(loadSavedNotes)
+  const todoStore = useTodos()
+  const { todos } = todoStore
   const [filter, setFilter] = useState<Filter>('all')
-  const [layout, setLayout] = useState<Layout>(loadLayout)
+  const [layout, setLayout] = usePersistentState(LAYOUT_STORAGE_KEY, loadLayout)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editingTitle, setEditingTitle] = useState('')
-  const [draggedId, setDraggedId] = useState<string | null>(null)
-  const [dropTarget, setDropTarget] = useState<{ id: string; position: DropPosition } | null>(null)
-  const [pendingScrollId, setPendingScrollId] = useState<string | null>(null)
-  const editFormRef = useRef<HTMLFormElement>(null)
-  const todoListRef = useRef<HTMLUListElement>(null)
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
-  }, [todos])
+  const visibleTodos = useMemo(() => filterTodos(todos, filter), [filter, todos])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(SAVED_NOTES_STORAGE_KEY, String(savedNotes))
-    } catch {
-      // 保存できない環境でもカウント表示は使えるようにする
-    }
-  }, [savedNotes])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(LAYOUT_STORAGE_KEY, String(layout))
-    } catch {
-      // 保存できない環境でも表示切り替えは使えるようにする
-    }
-  }, [layout])
-
-  useEffect(() => {
-    if (!pendingScrollId) return
-    keepDroppedTodoVisible(pendingScrollId)
-    setPendingScrollId(null)
-  }, [todos, pendingScrollId])
-
-  useEffect(() => {
-    if (!editingId) return
-    const currentEditingId = editingId
-
-    function handleOutsideClick(event: MouseEvent) {
-      if (editFormRef.current && !editFormRef.current.contains(event.target as Node)) {
-        saveEdit(currentEditingId)
-      }
-    }
-
-    document.addEventListener('mousedown', handleOutsideClick)
-    return () => document.removeEventListener('mousedown', handleOutsideClick)
-  }, [editingId, editingTitle])
-
-  useEffect(() => {
-    // 文字入力中以外で N キーを押すと項目を追加する
-    function handleShortcut(event: KeyboardEvent) {
-      if (event.key.toLowerCase() !== 'n' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return
-      const target = event.target as HTMLElement
-      if (target.closest('input, textarea, select, [contenteditable="true"]')) return
-
-      event.preventDefault()
-      addTodo()
-    }
-
-    document.addEventListener('keydown', handleShortcut)
-    return () => document.removeEventListener('keydown', handleShortcut)
-  }, [filter])
-
-  const visibleTodos = useMemo(() => {
-    if (filter === 'active') return todos.filter((todo) => !todo.completed)
-    if (filter === 'completed') return todos.filter((todo) => todo.completed)
-    return todos
-  }, [filter, todos])
-
-  const remaining = todos.filter((todo) => !todo.completed && todo.title !== '').length
-
-  function addTodo() {
-    const id = crypto.randomUUID()
-    // 空の項目を先頭に追加し、そのまま入力できるよう編集状態にする（カウントは保存時）
-    setTodos((current) => [{ id, title: '', completed: false, createdAt: Date.now() }, ...current])
+  // 空の項目を先頭に追加し、そのまま入力できるよう編集状態にする
+  function startAdding() {
+    const id = todoStore.addDraft()
     if (filter === 'completed') setFilter('all')
     setEditingId(id)
-    setEditingTitle('')
-    todoListRef.current?.scrollTo({ top: 0 })
   }
 
-  // 何も入力されずに編集を終えた新規項目は取り除く
-  function discardIfEmpty(id: string) {
-    if (todos.find((todo) => todo.id === id)?.title === '') removeTodo(id)
+  function save(id: string, title: string) {
+    if (todoStore.saveTitle(id, title)) setEditingId(null)
   }
 
-  function toggleTodo(id: string) {
-    setTodos((current) =>
-      current.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)),
-    )
+  function saveAndNext(id: string, title: string) {
+    save(id, title)
+    startAdding()
   }
 
-  function startEditing(todo: Todo) {
-    setEditingId(todo.id)
-    setEditingTitle(todo.title)
-  }
-
-  function saveEdit(id: string) {
-    const trimmedTitle = editingTitle.trim()
-    if (!trimmedTitle) {
-      if (todos.find((todo) => todo.id === id)?.title !== '') return
-      discardIfEmpty(id)
-      setEditingId(null)
-      return
-    }
-
-    if (todos.find((todo) => todo.id === id)?.title !== trimmedTitle) {
-      setSavedNotes((count) => count + 1)
-    }
-    setTodos((current) =>
-      current.map((todo) => (todo.id === id ? { ...todo, title: trimmedTitle } : todo)),
-    )
+  function cancelEdit(id: string) {
+    todoStore.discardIfEmpty(id)
     setEditingId(null)
-    setEditingTitle('')
   }
 
-  function cancelEdit() {
-    if (editingId) discardIfEmpty(editingId)
-    setEditingId(null)
-    setEditingTitle('')
-  }
-
-  function removeTodo(id: string) {
-    setTodos((current) => current.filter((todo) => todo.id !== id))
-  }
-
-  function clearCompleted() {
-    setTodos((current) => current.filter((todo) => !todo.completed))
-  }
-
-  function reorderTodos(targetId: string, position: DropPosition) {
-    if (!draggedId || draggedId === targetId) return
-
-    setTodos((current) => {
-      const draggedIndex = current.findIndex((todo) => todo.id === draggedId)
-      const targetIndex = current.findIndex((todo) => todo.id === targetId)
-      if (draggedIndex === -1 || targetIndex === -1) return current
-
-      const reordered = [...current]
-      const [draggedTodo] = reordered.splice(draggedIndex, 1)
-      const targetInsertionIndex = position === 'after' ? targetIndex + 1 : targetIndex
-      const insertionIndex = draggedIndex < targetInsertionIndex ? targetInsertionIndex - 1 : targetInsertionIndex
-      reordered.splice(insertionIndex, 0, draggedTodo)
-      return reordered
-    })
-  }
-
-  function updateDropTarget(event: React.DragEvent<HTMLLIElement>, id: string) {
-    if (!draggedId || draggedId === id) {
-      setDropTarget(null)
-      return
-    }
-
-    const bounds = event.currentTarget.getBoundingClientRect()
-    const position = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
-    setDropTarget({ id, position })
-  }
-
-  function autoScrollTodoList(event: React.DragEvent<HTMLUListElement>) {
-    if (!draggedId || !todoListRef.current) return
-
-    const list = todoListRef.current
-    const bounds = list.getBoundingClientRect()
-    const edgeThreshold = 48
-    const scrollStep = 3
-
-    if (event.clientY < bounds.top + edgeThreshold) {
-      list.scrollTop -= scrollStep
-    } else if (event.clientY > bounds.bottom - edgeThreshold) {
-      list.scrollTop += scrollStep
-    }
-  }
-
-  function keepDroppedTodoVisible(todoId: string) {
-    requestAnimationFrame(() => {
-      const list = todoListRef.current
-      if (!list) return
-
-      const droppedTodo = Array.from(list.children).find(
-        (item) => (item as HTMLElement).dataset.todoId === todoId,
-      ) as HTMLElement | undefined
-      droppedTodo?.scrollIntoView({ block: 'nearest' })
-    })
-  }
+  useKeyboardShortcut('n', startAdding)
 
   return (
     <main className="page-shell">
@@ -234,156 +54,39 @@ export default function App() {
             </h1>
             <p className="subtitle">今日やることを、シンプルに。</p>
           </div>
-          <div
-            className="leaf-counter"
-            role="status"
-            aria-label={`削減できた付箋 ${savedNotes}枚、CO2削減量 約${formatCo2(savedNotes)}`}
-            title={`付箋1枚あたり約${CO2_GRAMS_PER_NOTE}gのCO2削減として計算`}
-          >
-            <span className="leaf-label">削減できた付箋</span>
-            <span className="leaf-count">{savedNotes}<small>枚</small></span>
-            <span className="leaf-co2">CO₂ 約{formatCo2(savedNotes)}</span>
-          </div>
+          <LeafCounter savedNotes={todoStore.savedNotes} />
         </header>
 
-        <div className="toolbar">
-          <div className="toolbar-start">
-            <button
-              type="button"
-              className="add-button"
-              onClick={addTodo}
-              aria-label="タスクを追加"
-              aria-keyshortcuts="N"
-              title="新しいタスク（N）"
-            >
-              ＋
-            </button>
-            <div className="filters" aria-label="表示するタスク">
-              {(['all', 'active', 'completed'] as Filter[]).map((item) => (
-                <button
-                  key={item}
-                  className={filter === item ? 'active' : ''}
-                  onClick={() => setFilter(item)}
-                >
-                  {{ all: 'すべて', active: '未完了', completed: '完了' }[item]}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="toolbar-end">
-            <span>{remaining} 件残っています</span>
-            <div className="layout-switch" role="group" aria-label="タスクの表示列数">
-              {([1, 2] as Layout[]).map((columns) => (
-                <button
-                  key={columns}
-                  type="button"
-                  className={layout === columns ? 'active' : ''}
-                  aria-pressed={layout === columns}
-                  onClick={() => setLayout(columns)}
-                >
-                  {columns}列
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <Toolbar
+          filter={filter}
+          layout={layout}
+          remaining={todoStore.remaining}
+          onAdd={startAdding}
+          onFilterChange={setFilter}
+          onLayoutChange={setLayout}
+        />
 
-        <ul
-          className={`todo-list columns-${layout}`}
-          ref={todoListRef}
-          aria-live="polite"
-          onDragOver={(event) => autoScrollTodoList(event)}
-        >
-          {visibleTodos.map((todo) => (
-            <li
-              key={todo.id}
-              data-todo-id={todo.id}
-              className={`${todo.completed ? 'completed' : ''}${draggedId === todo.id ? ' dragging' : ''}${dropTarget?.id === todo.id ? ` drop-${dropTarget.position}` : ''}`}
-              draggable={editingId !== todo.id}
-              onDragStart={() => setDraggedId(todo.id)}
-              onDragOver={(event) => {
-                event.preventDefault()
-                updateDropTarget(event, todo.id)
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-                if (dropTarget?.id === todo.id && draggedId) {
-                  reorderTodos(todo.id, dropTarget.position)
-                  setPendingScrollId(draggedId)
-                }
-                setDraggedId(null)
-                setDropTarget(null)
-              }}
-              onDragEnd={() => {
-                setDraggedId(null)
-                setDropTarget(null)
-              }}
-            >
-              <button
-                className="check-button"
-                onClick={() => toggleTodo(todo.id)}
-                aria-label={todo.completed ? `${todo.title}を未完了に戻す` : `${todo.title}を完了にする`}
-                aria-pressed={todo.completed}
-              >
-                {todo.completed && '✓'}
-              </button>
-              {editingId === todo.id ? (
-                <form
-                  className="edit-form"
-                  ref={editFormRef}
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    saveEdit(todo.id)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') cancelEdit()
-                    // Shift+Enter で確定して、続けて次の項目を追加する
-                    if (event.key === 'Enter' && event.shiftKey && !event.nativeEvent.isComposing) {
-                      event.preventDefault()
-                      if (!editingTitle.trim()) return
-                      saveEdit(todo.id)
-                      addTodo()
-                    }
-                  }}
-                >
-                  <label className="sr-only" htmlFor={`edit-task-${todo.id}`}>タスク名を変更</label>
-                  <input
-                    id={`edit-task-${todo.id}`}
-                    value={editingTitle}
-                    onChange={(event) => setEditingTitle(event.target.value)}
-                    placeholder="新しいタスクを入力…"
-                    maxLength={100}
-                    autoFocus
-                  />
-                  <button type="submit" disabled={!editingTitle.trim()}>保存</button>
-                  <button type="button" onClick={cancelEdit}>キャンセル</button>
-                </form>
-              ) : (
-                <span className="editable-title" onDoubleClick={() => startEditing(todo)}>{todo.title}</span>
-              )}
-              <button className="delete-button" onClick={() => removeTodo(todo.id)} aria-label={`${todo.title}を削除`}>
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
+        <TodoList
+          todos={visibleTodos}
+          layout={layout}
+          editingId={editingId}
+          onToggle={todoStore.toggle}
+          onDelete={todoStore.remove}
+          onMove={todoStore.move}
+          onStartEdit={setEditingId}
+          onSave={save}
+          onSaveAndNext={saveAndNext}
+          onCancelEdit={cancelEdit}
+        />
 
-        {visibleTodos.length === 0 && (
-          <div className="empty-state">
-            <span>✓</span>
-            <p>{todos.length === 0 ? '＋ボタンでタスクを追加しましょう' : '該当するタスクはありません'}</p>
-          </div>
-        )}
+        {visibleTodos.length === 0 && <EmptyState hasTodos={todos.length > 0} />}
 
         {todos.some((todo) => todo.completed) && (
-          <button className="clear-button" onClick={clearCompleted}>完了済みを削除</button>
+          <button className="clear-button" onClick={todoStore.clearCompleted}>完了済みを削除</button>
         )}
       </section>
       <footer>
-        <p className="shortcut-hint">
-          <span><kbd>N</kbd> 新しいタスクを追加</span>
-          <span><kbd>Shift</kbd> + <kbd>Enter</kbd> 確定して続けて追加</span>
-        </p>
+        <ShortcutHint />
         <p>データはこのブラウザに保存されます</p>
       </footer>
     </main>
