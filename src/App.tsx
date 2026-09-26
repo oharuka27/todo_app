@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { CO2_GRAMS_PER_NOTE, SAVED_NOTES_STORAGE_KEY, formatCo2, loadSavedNotes } from './todoUtils'
 
 type Todo = {
   id: string
@@ -33,6 +34,7 @@ function loadTodos(): Todo[] {
 
 export default function App() {
   const [todos, setTodos] = useState<Todo[]>(loadTodos)
+  const [savedNotes, setSavedNotes] = useState(loadSavedNotes)
   const [title, setTitle] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [layout, setLayout] = useState<Layout>(loadLayout)
@@ -47,6 +49,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
   }, [todos])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SAVED_NOTES_STORAGE_KEY, String(savedNotes))
+    } catch {
+      // 保存できない環境でもカウント表示は使えるようにする
+    }
+  }, [savedNotes])
 
   useEffect(() => {
     try {
@@ -93,6 +103,7 @@ export default function App() {
       { id: crypto.randomUUID(), title: trimmedTitle, completed: false, createdAt: Date.now() },
       ...current,
     ])
+    setSavedNotes((count) => count + 1)
     setTitle('')
   }
 
@@ -111,6 +122,9 @@ export default function App() {
     const trimmedTitle = editingTitle.trim()
     if (!trimmedTitle) return
 
+    if (todos.find((todo) => todo.id === id)?.title !== trimmedTitle) {
+      setSavedNotes((count) => count + 1)
+    }
     setTodos((current) =>
       current.map((todo) => (todo.id === id ? { ...todo, title: trimmedTitle } : todo)),
     )
@@ -190,9 +204,24 @@ export default function App() {
     <main className="page-shell">
       <section className={`todo-card columns-${layout}`} aria-labelledby="page-title">
         <header className="hero">
-          <p className="eyebrow">DAILY FOCUS</p>
-          <h1 id="page-title">My Tasks</h1>
-          <p className="subtitle">今日やることを、シンプルに。</p>
+          <div>
+            <p className="eyebrow">DAILY FOCUS</p>
+            <h1 id="page-title">
+              <span>ちょっと待った！</span>
+              <span>その付箋</span>
+            </h1>
+            <p className="subtitle">今日やることを、シンプルに。</p>
+          </div>
+          <div
+            className="leaf-counter"
+            role="status"
+            aria-label={`削減できた付箋 ${savedNotes}枚、CO2削減量 約${formatCo2(savedNotes)}`}
+            title={`付箋1枚あたり約${CO2_GRAMS_PER_NOTE}gのCO2削減として計算`}
+          >
+            <span className="leaf-label">削減できた付箋</span>
+            <span className="leaf-count">{savedNotes}<small>枚</small></span>
+            <span className="leaf-co2">CO₂ 約{formatCo2(savedNotes)}</span>
+          </div>
         </header>
 
         <form className="add-form" onSubmit={addTodo}>

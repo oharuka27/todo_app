@@ -60,3 +60,22 @@ export function reorderTodos(
   reordered.splice(insertionIndex, 0, draggedTodo)
   return reordered
 }
+
+export const SAVED_NOTES_STORAGE_KEY = 'cloudflare-todo-saved-notes'
+
+// 75mm角の付箋1枚(約0.4g)の製造時CO2排出量からの概算値
+export const CO2_GRAMS_PER_NOTE = 0.5
+
+export function loadSavedNotes(): number {
+  try {
+    const saved = Number(localStorage.getItem(SAVED_NOTES_STORAGE_KEY))
+    return Number.isFinite(saved) && saved > 0 ? Math.floor(saved) : 0
+  } catch {
+    return 0
+  }
+}
+
+export function formatCo2(notes: number): string {
+  const grams = notes * CO2_GRAMS_PER_NOTE
+  return grams >= 1000 ? `${(grams / 1000).toFixed(2)}kg` : `${grams.toFixed(1)}g`
+}
