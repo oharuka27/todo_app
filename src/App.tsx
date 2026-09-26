@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CO2_GRAMS_PER_NOTE, SAVED_NOTES_STORAGE_KEY, formatCo2, loadSavedNotes } from './todoUtils'
 
 type Todo = {
   id: string
@@ -11,6 +12,16 @@ type Filter = 'all' | 'active' | 'completed'
 type DropPosition = 'before' | 'after'
 
 const STORAGE_KEY = 'cloudflare-todo-sample'
+const LAYOUT_STORAGE_KEY = 'cloudflare-todo-layout'
+type Layout = 1 | 2
+
+function loadLayout(): Layout {
+  try {
+    return localStorage.getItem(LAYOUT_STORAGE_KEY) === '2' ? 2 : 1
+  } catch {
+    return 1
+  }
+}
 
 function loadTodos(): Todo[] {
   try {
@@ -23,8 +34,9 @@ function loadTodos(): Todo[] {
 
 export default function App() {
   const [todos, setTodos] = useState<Todo[]>(loadTodos)
-  const [title, setTitle] = useState('')
+  const [savedNotes, setSavedNotes] = useState(loadSavedNotes)
   const [filter, setFilter] = useState<Filter>('all')
+  const [layout, setLayout] = useState<Layout>(loadLayout)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [draggedId, setDraggedId] = useState<string | null>(null)
@@ -36,6 +48,22 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
   }, [todos])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SAVED_NOTES_STORAGE_KEY, String(savedNotes))
+    } catch {
+      // 保存できない環境でもカウント表示は使えるようにする
+    }
+  }, [savedNotes])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, String(layout))
+    } catch {
+      // 保存できない環境でも表示切り替えは使えるようにする
+    }
+  }, [layout])
 
   useEffect(() => {
     if (!pendingScrollId) return
@@ -57,24 +85,42 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [editingId, editingTitle])
 
+  useEffect(() => {
+    // 文字入力中以外で N キーを押すと項目を追加する
+    function handleShortcut(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== 'n' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return
+      const target = event.target as HTMLElement
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return
+
+      event.preventDefault()
+      addTodo()
+    }
+
+    document.addEventListener('keydown', handleShortcut)
+    return () => document.removeEventListener('keydown', handleShortcut)
+  }, [filter])
+
   const visibleTodos = useMemo(() => {
     if (filter === 'active') return todos.filter((todo) => !todo.completed)
     if (filter === 'completed') return todos.filter((todo) => todo.completed)
     return todos
   }, [filter, todos])
 
-  const remaining = todos.filter((todo) => !todo.completed).length
+  const remaining = todos.filter((todo) => !todo.completed && todo.title !== '').length
 
-  function addTodo(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const trimmedTitle = title.trim()
-    if (!trimmedTitle) return
+  function addTodo() {
+    const id = crypto.randomUUID()
+    // 空の項目を先頭に追加し、そのまま入力できるよう編集状態にする（カウントは保存時）
+    setTodos((current) => [{ id, title: '', completed: false, createdAt: Date.now() }, ...current])
+    if (filter === 'completed') setFilter('all')
+    setEditingId(id)
+    setEditingTitle('')
+    todoListRef.current?.scrollTo({ top: 0 })
+  }
 
-    setTodos((current) => [
-      { id: crypto.randomUUID(), title: trimmedTitle, completed: false, createdAt: Date.now() },
-      ...current,
-    ])
-    setTitle('')
+  // 何も入力されずに編集を終えた新規項目は取り除く
+  function discardIfEmpty(id: string) {
+    if (todos.find((todo) => todo.id === id)?.title === '') removeTodo(id)
   }
 
   function toggleTodo(id: string) {
@@ -90,8 +136,16 @@ export default function App() {
 
   function saveEdit(id: string) {
     const trimmedTitle = editingTitle.trim()
-    if (!trimmedTitle) return
+    if (!trimmedTitle) {
+      if (todos.find((todo) => todo.id === id)?.title !== '') return
+      discardIfEmpty(id)
+      setEditingId(null)
+      return
+    }
 
+    if (todos.find((todo) => todo.id === id)?.title !== trimmedTitle) {
+      setSavedNotes((count) => count + 1)
+    }
     setTodos((current) =>
       current.map((todo) => (todo.id === id ? { ...todo, title: trimmedTitle } : todo)),
     )
@@ -100,6 +154,7 @@ export default function App() {
   }
 
   function cancelEdit() {
+    if (editingId) discardIfEmpty(editingId)
     setEditingId(null)
     setEditingTitle('')
   }
@@ -169,43 +224,72 @@ export default function App() {
 
   return (
     <main className="page-shell">
-      <section className="todo-card" aria-labelledby="page-title">
+      <section className={`todo-card columns-${layout}`} aria-labelledby="page-title">
         <header className="hero">
-          <p className="eyebrow">DAILY FOCUS</p>
-          <h1 id="page-title">My Tasks</h1>
-          <p className="subtitle">今日やることを、シンプルに。</p>
+          <div>
+            <p className="eyebrow">DAILY FOCUS</p>
+            <h1 id="page-title">
+              <span>ちょっと待った！</span>
+              <span>その付箋</span>
+            </h1>
+            <p className="subtitle">今日やることを、シンプルに。</p>
+          </div>
+          <div
+            className="leaf-counter"
+            role="status"
+            aria-label={`削減できた付箋 ${savedNotes}枚、CO2削減量 約${formatCo2(savedNotes)}`}
+            title={`付箋1枚あたり約${CO2_GRAMS_PER_NOTE}gのCO2削減として計算`}
+          >
+            <span className="leaf-label">削減できた付箋</span>
+            <span className="leaf-count">{savedNotes}<small>枚</small></span>
+            <span className="leaf-co2">CO₂ 約{formatCo2(savedNotes)}</span>
+          </div>
         </header>
 
-        <form className="add-form" onSubmit={addTodo}>
-          <label className="sr-only" htmlFor="new-task">新しいタスク</label>
-          <input
-            id="new-task"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="新しいタスクを入力…"
-            maxLength={100}
-            autoFocus
-          />
-          <button type="submit" disabled={!title.trim()} aria-label="タスクを追加">＋</button>
-        </form>
-
         <div className="toolbar">
-          <div className="filters" aria-label="表示するタスク">
-            {(['all', 'active', 'completed'] as Filter[]).map((item) => (
-              <button
-                key={item}
-                className={filter === item ? 'active' : ''}
-                onClick={() => setFilter(item)}
-              >
-                {{ all: 'すべて', active: '未完了', completed: '完了' }[item]}
-              </button>
-            ))}
+          <div className="toolbar-start">
+            <button
+              type="button"
+              className="add-button"
+              onClick={addTodo}
+              aria-label="タスクを追加"
+              aria-keyshortcuts="N"
+              title="新しいタスク（N）"
+            >
+              ＋
+            </button>
+            <div className="filters" aria-label="表示するタスク">
+              {(['all', 'active', 'completed'] as Filter[]).map((item) => (
+                <button
+                  key={item}
+                  className={filter === item ? 'active' : ''}
+                  onClick={() => setFilter(item)}
+                >
+                  {{ all: 'すべて', active: '未完了', completed: '完了' }[item]}
+                </button>
+              ))}
+            </div>
           </div>
-          <span>{remaining} 件残っています</span>
+          <div className="toolbar-end">
+            <span>{remaining} 件残っています</span>
+            <div className="layout-switch" role="group" aria-label="タスクの表示列数">
+              {([1, 2] as Layout[]).map((columns) => (
+                <button
+                  key={columns}
+                  type="button"
+                  className={layout === columns ? 'active' : ''}
+                  aria-pressed={layout === columns}
+                  onClick={() => setLayout(columns)}
+                >
+                  {columns}列
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <ul
-          className="todo-list"
+          className={`todo-list columns-${layout}`}
           ref={todoListRef}
           aria-live="polite"
           onDragOver={(event) => autoScrollTodoList(event)}
@@ -253,6 +337,13 @@ export default function App() {
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Escape') cancelEdit()
+                    // Shift+Enter で確定して、続けて次の項目を追加する
+                    if (event.key === 'Enter' && event.shiftKey && !event.nativeEvent.isComposing) {
+                      event.preventDefault()
+                      if (!editingTitle.trim()) return
+                      saveEdit(todo.id)
+                      addTodo()
+                    }
                   }}
                 >
                   <label className="sr-only" htmlFor={`edit-task-${todo.id}`}>タスク名を変更</label>
@@ -260,6 +351,7 @@ export default function App() {
                     id={`edit-task-${todo.id}`}
                     value={editingTitle}
                     onChange={(event) => setEditingTitle(event.target.value)}
+                    placeholder="新しいタスクを入力…"
                     maxLength={100}
                     autoFocus
                   />
@@ -279,7 +371,7 @@ export default function App() {
         {visibleTodos.length === 0 && (
           <div className="empty-state">
             <span>✓</span>
-            <p>{todos.length === 0 ? 'タスクはまだありません' : '該当するタスクはありません'}</p>
+            <p>{todos.length === 0 ? '＋ボタンでタスクを追加しましょう' : '該当するタスクはありません'}</p>
           </div>
         )}
 
@@ -287,7 +379,13 @@ export default function App() {
           <button className="clear-button" onClick={clearCompleted}>完了済みを削除</button>
         )}
       </section>
-      <footer>データはこのブラウザに保存されます</footer>
+      <footer>
+        <p className="shortcut-hint">
+          <span><kbd>N</kbd> 新しいタスクを追加</span>
+          <span><kbd>Shift</kbd> + <kbd>Enter</kbd> 確定して続けて追加</span>
+        </p>
+        <p>データはこのブラウザに保存されます</p>
+      </footer>
     </main>
   )
 }
