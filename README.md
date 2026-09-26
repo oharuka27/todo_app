@@ -27,6 +27,7 @@ React + TypeScript + Vite で構築し、Vitest による自動テスト、GitHu
 | ビルド | Vite |
 | テスト | Vitest, jsdom |
 | CI | GitHub Actions |
+| 実行環境 | Node.js 24（[.node-version](.node-version) で指定） |
 | 配信 | Cloudflare Workers（静的アセット）、Workers Builds（Git 連携による自動デプロイ） |
 
 ## ディレクトリ構成
@@ -60,6 +61,8 @@ src/
 
 ## ローカルでの起動
 
+Node.js 24 が必要です（[.node-version](.node-version)）。nvm や fnm を使っている場合は自動で切り替わります。
+
 ```bash
 npm install
 npm run dev
@@ -82,10 +85,11 @@ npm run build       # 型チェック（tsc）→ Vite ビルド。出力先は 
 
 `main` / `master` / `develop` への push と、プルリクエストで実行します。ワークフロー定義は [.github/workflows/ci.yml](.github/workflows/ci.yml) です。
 
-1. `npm ci` で依存関係をインストール
-2. `npm test` で Vitest を実行
-3. `npm run build` でビルド
-4. 結果をメールで通知（すべて成功 / いずれか失敗で文面を切り替え）
+1. [.node-version](.node-version) の Node.js をセットアップ
+2. `npm ci` で依存関係をインストール
+3. `npm test` で Vitest を実行
+4. `npm run build` でビルド
+5. 結果をメールで通知（すべて成功 / いずれか失敗で文面を切り替え）
 
 CI ではデプロイを行いません。デプロイは Cloudflare 側の Git 連携で行います（次の章を参照）。
 
