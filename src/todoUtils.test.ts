@@ -7,6 +7,7 @@ import {
   formatCo2,
   loadSavedNotes,
   loadTodos,
+  parseTodos,
   removeTodo,
   renameTodo,
   reorderTodos,
@@ -100,6 +101,39 @@ describe('todo utilities', () => {
 
     localStorage.clear()
     expect(loadTodos()).toEqual([])
+  })
+
+  it('ignores broken or non-array saved data', () => {
+    expect(parseTodos('{broken')).toEqual([])
+    expect(parseTodos('null')).toEqual([])
+    expect(parseTodos('{"id":"x"}')).toEqual([])
+
+    localStorage.setItem('cloudflare-todo-sample', '{broken')
+    expect(loadTodos()).toEqual([])
+    localStorage.clear()
+  })
+
+  it('keeps only valid todos from saved data', () => {
+    const valid = { id: 'ok', title: 'valid', completed: true, createdAt: 1 }
+    const saved = JSON.stringify([
+      valid,
+      null,
+      'text',
+      { id: 'no-title', completed: false, createdAt: 2 },
+      { id: 'bad-completed', title: 'x', completed: 'yes', createdAt: 3 },
+      { id: 'bad-date', title: 'x', completed: false, createdAt: '2026-01-01' },
+      { id: '', title: 'empty id', completed: false, createdAt: 4 },
+      { id: 'draft', title: '  ', completed: false, createdAt: 5 },
+      { ...valid, title: 'duplicate' },
+    ])
+
+    expect(parseTodos(saved)).toEqual([valid])
+  })
+
+  it('drops unknown fields from saved todos', () => {
+    const saved = JSON.stringify([{ id: 'x', title: 't', completed: false, createdAt: 1, extra: '<script>' }])
+
+    expect(parseTodos(saved)).toEqual([{ id: 'x', title: 't', completed: false, createdAt: 1 }])
   })
 
   it('loads saved note count and falls back to zero', () => {

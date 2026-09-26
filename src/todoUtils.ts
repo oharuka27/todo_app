@@ -53,10 +53,42 @@ export function countRemaining(todos: Todo[]): number {
   return todos.filter((todo) => !todo.completed && todo.title !== '').length
 }
 
+export function isTodo(value: unknown): value is Todo {
+  if (typeof value !== 'object' || value === null) return false
+  const todo = value as Record<string, unknown>
+  return (
+    typeof todo.id === 'string' &&
+    todo.id !== '' &&
+    typeof todo.title === 'string' &&
+    typeof todo.completed === 'boolean' &&
+    typeof todo.createdAt === 'number' &&
+    Number.isFinite(todo.createdAt)
+  )
+}
+
+// 保存データは外部から書き換えられる可能性があるため、形が正しい項目だけを取り出す。
+// 入力途中のまま閉じた空の項目と、id が重複する項目も読み込まない
+export function parseTodos(json: string): Todo[] {
+  let data: unknown
+  try {
+    data = JSON.parse(json)
+  } catch {
+    return []
+  }
+  if (!Array.isArray(data)) return []
+
+  const seenIds = new Set<string>()
+  return data.filter((item): item is Todo => {
+    if (!isTodo(item) || item.title.trim() === '' || seenIds.has(item.id)) return false
+    seenIds.add(item.id)
+    return true
+  }).map(({ id, title, completed, createdAt }) => ({ id, title, completed, createdAt }))
+}
+
 export function loadTodos(): Todo[] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? (JSON.parse(saved) as Todo[]) : []
+    return saved ? parseTodos(saved) : []
   } catch {
     return []
   }
