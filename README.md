@@ -3,7 +3,7 @@
 紙の付箋に書く代わりに使う、エコ志向の TODO アプリです。
 タスクを書いたり書き直したりするたびに「使わずに済んだ付箋」を数え、削減できた CO₂ の目安を表示します。
 
-React + TypeScript + Vite で構築し、Vitest による自動テスト、GitHub Actions による CI、Cloudflare Workers での静的配信を組み合わせています。
+React + TypeScript + Vite で構築し、Vitest による自動テスト、GitHub Actions による CI、Cloudflare の Git 連携による自動デプロイを組み合わせています。
 
 ## 機能
 
@@ -27,7 +27,7 @@ React + TypeScript + Vite で構築し、Vitest による自動テスト、GitHu
 | ビルド | Vite |
 | テスト | Vitest, jsdom |
 | CI | GitHub Actions |
-| 配信 | Cloudflare Workers（静的アセット） |
+| 配信 | Cloudflare Workers（静的アセット）、Workers Builds（Git 連携による自動デプロイ） |
 
 ## ディレクトリ構成
 
@@ -87,7 +87,7 @@ npm run build       # 型チェック（tsc）→ Vite ビルド。出力先は 
 3. `npm run build` でビルド
 4. 結果をメールで通知（すべて成功 / いずれか失敗で文面を切り替え）
 
-CI ではデプロイを行いません。
+CI ではデプロイを行いません。デプロイは Cloudflare 側の Git 連携で行います（次の章を参照）。
 
 ### 必要な設定
 
@@ -98,11 +98,50 @@ GitHub のリポジトリ設定で、以下を登録してください。
 
 ## Cloudflare へのデプロイ
 
-[wrangler.jsonc](wrangler.jsonc) で、`dist/` を Cloudflare Workers の静的アセットとして配信する設定にしています。
+Cloudflare の Git 連携（Workers Builds）で、GitHub リポジトリ `oharuka27/todo_app` と Cloudflare Workers の `todo-app` をつないでいます。
+GitHub に push すると、Cloudflare 側でビルドとデプロイが自動で実行されます。
+
+```
+git push ─┬─▶ GitHub Actions: テスト・ビルド → 結果をメール通知
+          └─▶ Cloudflare Workers Builds: ビルド → main なら本番にデプロイ
+                                                   それ以外は新しいバージョンをアップロードのみ
+```
+
+### ブランチごとの動き
+
+| push 先 | Cloudflare で実行されるコマンド | 本番への反映 |
+|---|---|---|
+| `main`（本番ブランチ） | `npm run build` → `npx wrangler deploy --assets ./dist` | される |
+| それ以外（`develop` など） | `npm run build` → `npx wrangler versions upload --assets ./dist` | されない（バージョンの登録のみ） |
+
+### Cloudflare 側の設定
+
+Cloudflare ダッシュボードの Workers & Pages → `todo-app` → 設定 → ビルド で設定しています。
+
+| 項目 | 設定値 |
+|---|---|
+| Git リポジトリ | `oharuka27/todo_app` |
+| ビルドコマンド | `npm run build` |
+| デプロイコマンド | `npx wrangler deploy --assets ./dist` |
+| バージョンコマンド | `npx wrangler versions upload --assets ./dist` |
+| ルートディレクトリ | `/` |
+| プロダクションブランチ | `main` |
+| 非本番ブランチのビルド | 有効 |
+| 監視パス | すべて（`*`） |
+| ビルド変数・シークレット | なし |
+| ビルドキャッシュ | 有効 |
+| API トークン | `todo-app build token` |
+
+配信の設定は [wrangler.jsonc](wrangler.jsonc) にあり、`dist/` を静的アセットとして配信します。
+静的アセットのみの Worker のため、Cron などのトリガーは使えません。
+
+> **注意**: GitHub Actions と Cloudflare のデプロイは独立して動きます。テストが失敗しても `main` への push でデプロイされるため、`develop` で CI が通ったことを確認してから `main` にマージしてください。
+
+### 手動でデプロイする場合
 
 ```bash
 npm run build
-npx wrangler deploy
+npx wrangler deploy --assets ./dist
 ```
 
 ## Cloudflare Access で保護する
