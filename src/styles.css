@@ -111,14 +111,13 @@ h1 span:last-child { color: #5f765c; }
 
 .todo-list { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; column-gap: 20px; flex: 1; min-height: 0; margin: 0; padding: 0 6px 0 0; overflow-y: auto; list-style: none; scrollbar-color: #b8c2b4 transparent; scrollbar-width: thin; }
 .todo-list.columns-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.todo-list li { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 6px 10px; border-bottom: 1px solid #ecebe6; cursor: grab; transition: background .15s, opacity .15s; }
-.todo-list li:active { cursor: grabbing; }
-.todo-list li.dragging { opacity: .45; background: #edf1eb; }
+.todo-list li { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 6px 10px; border-bottom: 1px solid #ecebe6; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: background .15s, opacity .15s, transform .15s, box-shadow .15s; }
+.todo-list li.dragging { position: relative; z-index: 1; cursor: grabbing; opacity: .75; background: #edf1eb; border-radius: 10px; box-shadow: 0 8px 20px rgba(55, 70, 52, .18); transform: scale(1.02); }
 .todo-list li.drop-before { border-top: 2px solid #5f765c; }
 .todo-list li.drop-after { border-bottom: 2px solid #5f765c; }
-.todo-list li > span { flex: 1; overflow-wrap: anywhere; }
-.editable-title { cursor: text; }
-.todo-list li.completed > span { color: #a1a39e; text-decoration: line-through; }
+.editable-title { flex: 1; min-width: 0; padding: 4px 0; color: inherit; background: none; border: 0; border-radius: 4px; font-size: 1rem; text-align: left; overflow-wrap: anywhere; cursor: text; }
+.editable-title:focus-visible { outline: 2px solid #879c82; outline-offset: 2px; }
+.todo-list li.completed .editable-title { color: #a1a39e; text-decoration: line-through; }
 .check-button { width: 23px; height: 23px; padding: 0; color: white; background: transparent; border: 1.5px solid #acb5a9; border-radius: 50%; font-size: .72rem; }
 .completed .check-button { background: #73866f; border-color: #73866f; }
 .edit-form { display: flex; flex: 1; gap: 6px; min-width: 0; }

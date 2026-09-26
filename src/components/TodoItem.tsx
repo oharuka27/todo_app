@@ -1,12 +1,14 @@
-import type { DragEvent } from 'react'
+import type { MouseEvent, PointerEvent } from 'react'
 import type { DropPosition, Todo } from '../todoUtils'
 import { TodoEditForm } from './TodoEditForm'
 
 type DragHandlers = {
-  onDragStart: () => void
-  onDragOver: (event: DragEvent<HTMLLIElement>) => void
-  onDrop: (event: DragEvent<HTMLLIElement>) => void
-  onDragEnd: () => void
+  onPointerDown: (event: PointerEvent<HTMLLIElement>) => void
+  onPointerMove: (event: PointerEvent<HTMLLIElement>) => void
+  onPointerUp: () => void
+  onPointerCancel: () => void
+  onClickCapture: (event: MouseEvent<HTMLLIElement>) => void
+  onContextMenu: (event: MouseEvent<HTMLLIElement>) => void
 }
 
 type Props = {
@@ -14,7 +16,7 @@ type Props = {
   isEditing: boolean
   isDragging: boolean
   dropPosition: DropPosition | null
-  dragHandlers: DragHandlers
+  dragHandlers?: DragHandlers
   onToggle: () => void
   onDelete: () => void
   onStartEdit: () => void
@@ -43,7 +45,7 @@ export function TodoItem({
   ].filter(Boolean).join(' ')
 
   return (
-    <li data-todo-id={todo.id} className={className} draggable={!isEditing} {...dragHandlers}>
+    <li data-todo-id={todo.id} className={className} {...dragHandlers}>
       <button
         className="check-button"
         onClick={onToggle}
@@ -61,7 +63,9 @@ export function TodoItem({
           onCancel={onCancelEdit}
         />
       ) : (
-        <span className="editable-title" onDoubleClick={onStartEdit}>{todo.title}</span>
+        <button type="button" className="editable-title" onClick={onStartEdit} aria-label={`${todo.title}を編集`}>
+          {todo.title}
+        </button>
       )}
       <button className="delete-button" onClick={onDelete} aria-label={`${todo.title}を削除`}>
         ×

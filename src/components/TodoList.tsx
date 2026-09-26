@@ -28,10 +28,10 @@ export function TodoList({
   onSaveAndNext,
   onCancelEdit,
 }: Props) {
-  const { listRef, draggedId, dropTarget, autoScroll, itemHandlers } = useDragReorder(todos, onMove)
+  const { listRef, draggedId, dropTarget, itemHandlers } = useDragReorder(todos, onMove)
 
   return (
-    <ul className={`todo-list columns-${layout}`} ref={listRef} aria-live="polite" onDragOver={autoScroll}>
+    <ul className={`todo-list columns-${layout}`} ref={listRef} aria-live="polite">
       {todos.map((todo) => (
         <TodoItem
           key={todo.id}
@@ -39,7 +39,7 @@ export function TodoList({
           isEditing={editingId === todo.id}
           isDragging={draggedId === todo.id}
           dropPosition={dropTarget?.id === todo.id ? dropTarget.position : null}
-          dragHandlers={itemHandlers(todo.id)}
+          dragHandlers={editingId === todo.id ? undefined : itemHandlers(todo.id)}
           onToggle={() => onToggle(todo.id)}
           onDelete={() => onDelete(todo.id)}
           onStartEdit={() => onStartEdit(todo.id)}
