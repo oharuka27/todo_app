@@ -27,7 +27,7 @@ React + TypeScript + Vite で構築し、Vitest による自動テスト、GitHu
 | ビルド | Vite |
 | テスト | Vitest, jsdom |
 | CI | GitHub Actions |
-| 実行環境 | Node.js 24（[.node-version](.node-version) で指定） |
+| 実行環境 | Node.js 24.22.1 以上（[.node-version](.node-version) で指定） |
 | 配信 | Cloudflare Workers（静的アセット）、Workers Builds（Git 連携による自動デプロイ） |
 
 ## ディレクトリ構成
@@ -61,7 +61,7 @@ src/
 
 ## ローカルでの起動
 
-Node.js 24 が必要です（[.node-version](.node-version)）。nvm や fnm を使っている場合は自動で切り替わります。
+Node.js 24.22.1 以上が必要です（[.node-version](.node-version)）。古いバージョンでは `npm install` がエラーになります。nvm や fnm を使っている場合は自動で切り替わります。
 
 ```bash
 npm install
