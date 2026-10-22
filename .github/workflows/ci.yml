@@ -42,7 +42,7 @@ jobs:
             steps.test.outcome == 'success' &&
             steps.build.outcome == 'success'
           }}
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@47af4a10b540781705f283a2cf1a9650713ac795 # v23
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
           server_port: ${{ secrets.SMTP_PORT }}
@@ -77,7 +77,7 @@ jobs:
               steps.build.outcome == 'failure'
             )
           }}
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@47af4a10b540781705f283a2cf1a9650713ac795 # v23
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
           server_port: ${{ secrets.SMTP_PORT }}
